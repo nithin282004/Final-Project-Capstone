@@ -18,9 +18,59 @@ except Exception:
 from tensorflow.keras.models import load_model
 from tensorflow.keras.layers import Dense
 
-# Optional hardcoded credentials (not recommended for shared/public repos).
-OPENAI_API_KEY_HARDCODED = "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"
-OPENAI_MODEL_HARDCODED = "gpt-4o-mini"
+OPENAI_MODEL_DEFAULT = "gpt-4o-mini"
+
+
+def load_dotenv_file(dotenv_path=".env"):
+    """Load local environment variables from a .env file if present."""
+    if not os.path.exists(dotenv_path):
+        return
+
+    try:
+        with open(dotenv_path, "r", encoding="utf-8") as env_file:
+            for raw_line in env_file:
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip()
+
+                if not key or os.getenv(key):
+                    continue
+
+                if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+                    value = value[1:-1]
+
+                os.environ[key] = value
+    except Exception:
+        pass
+
+
+def get_config_value(name, default=""):
+    """Resolve config from environment variables, Streamlit secrets, or a default."""
+    value = os.getenv(name, "").strip()
+    if value:
+        return value
+
+    try:
+        secret_value = st.secrets.get(name, "")
+        if isinstance(secret_value, str):
+            secret_value = secret_value.strip()
+            if secret_value:
+                return secret_value
+        elif secret_value is not None:
+            secret_text = str(secret_value).strip()
+            if secret_text:
+                return secret_text
+    except Exception:
+        pass
+
+    return default
+
+
+load_dotenv_file()
 
 # ===========================
 # PAGE CONFIGURATION
@@ -1431,12 +1481,12 @@ def get_rule_based_followup_response(user_question, features):
 
 def get_llm_reduction_suggestions(features, predicted_co2_mt):
     """Generate reduction plan with OpenAI; fallback to deterministic rules."""
-    api_key = os.getenv('OPENAI_API_KEY', '').strip() or OPENAI_API_KEY_HARDCODED.strip()
+    api_key = get_config_value('OPENAI_API_KEY')
     if not api_key:
         return get_rule_based_reduction_suggestions(features), "rule-based", "OPENAI_API_KEY is missing"
 
     try:
-        model_name = os.getenv('OPENAI_MODEL', '').strip() or OPENAI_MODEL_HARDCODED
+        model_name = get_config_value('OPENAI_MODEL', OPENAI_MODEL_DEFAULT)
         prompt = f"""
 You are a climate policy and carbon optimization advisor.
 
@@ -1477,7 +1527,7 @@ Output each driver line in this format:
 
 def get_followup_advisor_response(user_question, features, predicted_co2_mt, current_plan):
     """Answer user follow-up questions about reduction strategy."""
-    api_key = os.getenv('OPENAI_API_KEY', '').strip() or OPENAI_API_KEY_HARDCODED.strip()
+    api_key = get_config_value('OPENAI_API_KEY')
     if not api_key:
         return (
             get_rule_based_followup_response(user_question, features),
@@ -1486,7 +1536,7 @@ def get_followup_advisor_response(user_question, features, predicted_co2_mt, cur
         )
 
     try:
-        model_name = os.getenv('OPENAI_MODEL', '').strip() or OPENAI_MODEL_HARDCODED
+        model_name = get_config_value('OPENAI_MODEL', OPENAI_MODEL_DEFAULT)
 
         prompt = f"""
 You are a practical carbon reduction advisor.

@@ -14,19 +14,21 @@ This project is ready to run and deploy as a Streamlit app using:
 pip install -r requirements.txt
 ```
 
-3. Add your API key (optional for AI advisor feature):
+3. Add your API key and optional model name for the AI advisor feature:
 
 ```bash
-cp .streamlit/secrets.toml.example .streamlit/secrets.toml
+cp .env.example .env
 ```
 
 PowerShell equivalent:
 
 ```powershell
-Copy-Item .streamlit/secrets.toml.example .streamlit/secrets.toml
+Copy-Item .env.example .env
 ```
 
-Then edit `.streamlit/secrets.toml` and set `OPENAI_API_KEY`.
+Then edit `.env` and set `OPENAI_API_KEY` and, if desired, `OPENAI_MODEL`.
+
+You can also use Streamlit secrets instead of a local `.env` file by copying `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml`.
 
 4. Start the app:
 
