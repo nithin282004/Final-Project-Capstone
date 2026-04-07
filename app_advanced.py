@@ -16,7 +16,7 @@ try:
 except Exception:
     OpenAI = None
 from tensorflow.keras.models import load_model
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, InputLayer
 
 OPENAI_MODEL_DEFAULT = "gpt-4o-mini"
 
@@ -471,6 +471,17 @@ def load_deep_learning_model(model_key):
             cfg.pop('quantization_config', None)
             return super().from_config(cfg)
 
+    class InputLayerCompat(InputLayer):
+        """Compatibility InputLayer for models saved with older Keras configs."""
+
+        @classmethod
+        def from_config(cls, config):
+            cfg = dict(config)
+            batch_shape = cfg.pop('batch_shape', None)
+            if batch_shape is not None and 'batch_input_shape' not in cfg:
+                cfg['batch_input_shape'] = batch_shape
+            return super().from_config(cfg)
+
     try:
         return load_model(model_path, compile=False), None
     except Exception:
@@ -478,7 +489,7 @@ def load_deep_learning_model(model_key):
             return load_model(
                 model_path,
                 compile=False,
-                custom_objects={'Dense': DenseCompat}
+                custom_objects={'Dense': DenseCompat, 'InputLayer': InputLayerCompat}
             ), None
         except Exception as compat_error:
             return None, f"Failed to load {model_key} from {model_path}: {compat_error}"
