@@ -27,7 +27,7 @@ OPENAI_MODEL_HARDCODED = "gpt-4o-mini"
 # ===========================
 
 st.set_page_config(
-    page_title="Comparative Analysis of Deep Learning and Machine Learning Models for CO2 Forecasting",
+    page_title="CarbonCast: AI-Powered CO2 Forecasting",
     page_icon="C",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -363,7 +363,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h1 class='main-header'>Comparative Analysis of Deep Learning for <b>Carbon Emission Forecasting</b></h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='main-header'>CarbonCast: <b>AI-Powered CO2 Forecasting</b></h1>", unsafe_allow_html=True)
 
 BASE_FEATURE_ORDER = [
     'population', 'gdp', 'coal_co2', 'oil_co2',
@@ -2365,7 +2365,7 @@ elif mode == 'Model Explainability':
 st.divider()
 st.markdown("""
 <div class='footer'>
-<p><b>Comparative Analysis of Deep Learning and Machine Learning Models</b><br>
-<small>CO2 Forecasting Research</small></p>
+<p><b>CarbonCast: AI-Powered CO2 Forecasting</b><br>
+<small>CarbonCast: AI-Powered CO2 Forecasting</small></p>
 </div>
 """, unsafe_allow_html=True)
