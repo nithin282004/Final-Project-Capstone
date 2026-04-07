@@ -27,7 +27,7 @@ OPENAI_MODEL_HARDCODED = "gpt-4o-mini"
 # ===========================
 
 st.set_page_config(
-    page_title="Carbon Emissions Research Platform",
+    page_title="Comparative Analysis of Deep Learning and Machine Learning Models for CO2 Forecasting",
     page_icon="C",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -94,9 +94,13 @@ st.markdown("""
         padding: 48px 22px;
         border-radius: 18px;
         box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
-        margin-bottom: 20px;
+        margin: 0 auto 20px auto;
         letter-spacing: 0.01em;
         text-shadow: 0 2px 10px rgba(15, 23, 42, 0.45);
+        font-size: 1rem;
+        line-height: 1.6;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
 
     .main-header * {
@@ -314,6 +318,27 @@ st.markdown("""
         color: var(--ink-900) !important;
     }
 
+    /* Tabs: ensure labels are always readable */
+    div[data-baseweb="tab-list"] button {
+        background: rgba(226, 232, 240, 0.55) !important;
+        border: 1px solid rgba(148, 163, 184, 0.45) !important;
+        border-radius: 10px 10px 0 0 !important;
+    }
+
+    div[data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+        color: #0f172a !important;
+        font-weight: 700 !important;
+    }
+
+    div[data-baseweb="tab-list"] button[aria-selected="true"] {
+        background: #ffffff !important;
+        border-bottom: 2px solid #0ea5e9 !important;
+    }
+
+    div[data-baseweb="tab-list"] button[aria-selected="true"] [data-testid="stMarkdownContainer"] p {
+        color: #0369a1 !important;
+    }
+
     .stDataFrame {
         border-radius: 14px;
         overflow: hidden;
@@ -338,7 +363,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h1 class='main-header'>Carbon Emissions Analytics Platform</h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='main-header'>Comparative Analysis of Deep Learning for <b>Carbon Emission Forecasting</b></h1>", unsafe_allow_html=True)
 
 BASE_FEATURE_ORDER = [
     'population', 'gdp', 'coal_co2', 'oil_co2',
@@ -354,7 +379,7 @@ YEAR_IMPACT_MULTIPLIER = 2.0
 # ===========================
 
 @st.cache_resource
-def load_regression_models():
+def load_regression_models(version_token=None):
     model_files = {
         'random_forest': 'models/random_forest_model.pkl',
         'xgboost': 'models/xgboost_model.pkl'
@@ -376,7 +401,8 @@ def load_regression_models():
 @st.cache_resource
 def load_deep_learning_model(model_key):
     model_files = {
-        'lstm': 'models/lstm_model.h5'
+        'lstm': 'models/lstm_model.h5',
+        'rnn': 'models/rnn_model.h5'
     }
 
     if model_key not in model_files:
@@ -409,7 +435,8 @@ def load_deep_learning_model(model_key):
 
 def get_available_deep_model_keys():
     model_files = {
-        'lstm': 'models/lstm_model.h5'
+        'lstm': 'models/lstm_model.h5',
+        'rnn': 'models/rnn_model.h5'
     }
     return [key for key, path in model_files.items() if os.path.exists(path)]
 
@@ -444,9 +471,9 @@ def load_metadata():
         return None, f"Failed to load metadata from models/metadata.json: {e}"
 
 @st.cache_data
-def load_country_profiles():
+def load_country_profiles(version_token=None):
     try:
-        df = pd.read_csv('owid-co2-data.csv', usecols=['country', 'year', 'co2'] + BASE_FEATURE_ORDER)
+        df = pd.read_csv('owid-co2-data-rows-dropped.backup-before-web-refresh.csv', usecols=['country', 'year', 'co2'] + BASE_FEATURE_ORDER)
         numeric_cols = ['year', 'co2'] + BASE_FEATURE_ORDER
         for col in numeric_cols:
             df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -475,24 +502,33 @@ def load_country_profiles():
         countries = sorted(profiles.keys())
         return profiles, countries, None
     except Exception as e:
-        return {}, [], f"Failed to load country profiles from owid-co2-data.csv: {e}"
+        return {}, [], f"Failed to load country profiles from owid-co2-data-rows-dropped.backup-before-web-refresh.csv: {e}"
 
 @st.cache_resource
-def load_all_performance():
+def load_all_performance(version_token=None):
     try:
         return pd.read_csv('models/all_models_performance.csv'), None
     except Exception as e:
         return None, f"Failed to load model performance from models/all_models_performance.csv: {e}"
 
 # Load resources
-regression_models, regression_load_errors = load_regression_models()
+regression_models, regression_load_errors = load_regression_models(
+    (
+        get_file_version_token('models/random_forest_model.pkl'),
+        get_file_version_token('models/xgboost_model.pkl')
+    )
+)
 dl_models = {}
 available_deep_model_keys = get_available_deep_model_keys()
 scaler, scaler_load_error = load_scaler(get_file_version_token('models/scaler_regression.pkl'))
 feature_info, feature_info_error = load_feature_info()
 metadata, metadata_error = load_metadata()
-country_profiles, available_countries, country_profiles_error = load_country_profiles()
-all_perf_df, all_perf_error = load_all_performance()
+country_profiles, available_countries, country_profiles_error = load_country_profiles(
+    get_file_version_token('owid-co2-data-rows-dropped.backup-before-web-refresh.csv')
+)
+all_perf_df, all_perf_error = load_all_performance(
+    get_file_version_token('models/all_models_performance.csv')
+)
 
 load_issues = []
 if regression_load_errors:
@@ -628,13 +664,15 @@ def auto_adjust_inputs(previous_features, input_features):
 MODEL_LABELS = {
     'random_forest': 'Random Forest',
     'xgboost': 'XGBoost',
-    'lstm': 'LSTM'
+    'lstm': 'LSTM',
+    'rnn': 'RNN'
 }
 
 MODEL_SHORT_NAMES = {
     'random_forest': 'RF',
     'xgboost': 'XGB',
-    'lstm': 'LSTM'
+    'lstm': 'LSTM',
+    'rnn': 'RNN'
 }
 
 DEFAULT_FEATURES = {
@@ -739,7 +777,8 @@ def get_selected_model_performance(model_key, perf_df):
     perf_name_map = {
         'random_forest': 'Random Forest',
         'xgboost': 'XGBoost',
-        'lstm': 'LSTM'
+        'lstm': 'LSTM',
+        'rnn': 'RNN'
     }
 
     model_name = perf_name_map.get(model_key)
@@ -780,7 +819,7 @@ def aggregate_predictions(predictions, method='Mean', trim_fraction=0.1):
 
 def get_available_model_keys(reg_models, deep_model_keys):
     """Return available model keys in display order."""
-    ordered = ['xgboost', 'random_forest', 'lstm']
+    ordered = ['xgboost', 'random_forest', 'lstm', 'rnn']
     deep_keys = set(deep_model_keys or [])
     available = []
     for model_key in ordered:
@@ -798,7 +837,8 @@ def get_best_available_model_key(perf_df, available_model_keys):
     name_to_key = {
         'Random Forest': 'random_forest',
         'XGBoost': 'xgboost',
-        'LSTM': 'lstm'
+        'LSTM': 'lstm',
+        'RNN': 'rnn'
     }
 
     ranked = perf_df.sort_values('R² Score', ascending=False)['Model'].astype(str).tolist()
@@ -886,7 +926,7 @@ def get_explainability_model(selected_key, reg_models, deep_model_keys, deep_mod
 
 def predict_single_model(model_key, model_obj, X_scaled):
     """Run a single prediction while handling 2D and 3D model input shapes."""
-    if model_key in ('lstm',):
+    if model_key in ('lstm', 'rnn'):
         model_input = X_scaled.reshape((X_scaled.shape[0], 1, X_scaled.shape[1]))
         pred = model_obj.predict(model_input, verbose=0)
         return float(np.ravel(pred)[0])
@@ -975,6 +1015,176 @@ def get_scenario_intelligence(features, predicted_co2_mt, actual_co2_mt=None):
         'delta_percent': delta_percent,
         'mix_df': mix_df
     }
+
+def render_comparison_dashboard(predictions_map, final_prediction_mt, scenario_intel, actual_co2_mt, performance_df):
+    """Render comparison-focused charts for current prediction context."""
+    st.markdown("<h3 style='color: #0f3460; margin-top: 26px; font-weight: 700;'>Comparison Graphs</h3>", unsafe_allow_html=True)
+
+    chart_col1, chart_col2 = st.columns(2)
+
+    with chart_col1:
+        mix_df = (scenario_intel or {}).get('mix_df')
+        if mix_df is not None and not mix_df.empty:
+            mix_plot_df = mix_df.copy()
+            fig_mix = px.pie(
+                mix_plot_df,
+                names='Driver',
+                values='Value (MT)',
+                hole=0.45,
+                color='Driver',
+                color_discrete_sequence=['#0ea5e9', '#0284c7', '#14b8a6', '#22c55e', '#f59e0b'],
+                title='Current Emissions Mix Share'
+            )
+            fig_mix.update_layout(template='plotly_white', height=390, legend_title='Driver')
+            fig_mix.update_traces(textposition='inside', textinfo='percent+label')
+            st.plotly_chart(fig_mix, use_container_width=True)
+        else:
+            st.info("Emissions mix is not available for charting.")
+
+    with chart_col2:
+        pred_vals = list((predictions_map or {}).values())
+        if pred_vals:
+            spread_df = pd.DataFrame({
+                'Statistic': ['Min Model', 'Mean (Final)', 'Max Model'],
+                'Carbon (MT)': [float(np.min(pred_vals)), float(final_prediction_mt), float(np.max(pred_vals))]
+            })
+            fig_spread = px.bar(
+                spread_df,
+                x='Statistic',
+                y='Carbon (MT)',
+                color='Statistic',
+                color_discrete_sequence=['#14b8a6', '#0ea5e9', '#0284c7'],
+                title='Prediction Spread Summary'
+            )
+            fig_spread.update_layout(template='plotly_white', height=390, showlegend=False)
+            st.plotly_chart(fig_spread, use_container_width=True)
+        else:
+            st.info("Prediction spread is unavailable.")
+
+    if mix_df is not None and not mix_df.empty:
+        pareto_df = mix_df.sort_values('Value (MT)', ascending=False).reset_index(drop=True).copy()
+        total_value = float(pareto_df['Value (MT)'].sum())
+        if total_value > 0:
+            pareto_df['Cumulative (%)'] = pareto_df['Value (MT)'].cumsum() / total_value * 100
+
+            fig_pareto = go.Figure()
+            fig_pareto.add_trace(
+                go.Bar(
+                    x=pareto_df['Driver'],
+                    y=pareto_df['Value (MT)'],
+                    name='Value (MT)',
+                    marker_color='#0ea5e9'
+                )
+            )
+            fig_pareto.add_trace(
+                go.Scatter(
+                    x=pareto_df['Driver'],
+                    y=pareto_df['Cumulative (%)'],
+                    name='Cumulative Share (%)',
+                    mode='lines+markers',
+                    line=dict(color='#f97316', width=3),
+                    marker=dict(size=8),
+                    yaxis='y2'
+                )
+            )
+            fig_pareto.update_layout(
+                title='Emissions Driver Pareto Comparison',
+                template='plotly_white',
+                height=390,
+                xaxis_title='Driver',
+                yaxis=dict(title='Value (MT)'),
+                yaxis2=dict(title='Cumulative Share (%)', overlaying='y', side='right', range=[0, 100]),
+                legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)
+            )
+            st.plotly_chart(fig_pareto, use_container_width=True)
+
+def get_current_run_short_models(selected_key, scope_value, available_keys):
+    """Resolve currently included short model names using last prediction when available."""
+    last_predictions = st.session_state.get('last_predictions')
+    if isinstance(last_predictions, dict) and last_predictions:
+        return set(last_predictions.keys())
+
+    if scope_value == 'All available models':
+        return {MODEL_SHORT_NAMES.get(model_key, model_key) for model_key in (available_keys or [])}
+
+    if selected_key:
+        return {MODEL_SHORT_NAMES.get(selected_key, selected_key)}
+
+    return set()
+
+def render_prediction_aware_model_graphs(performance_df, current_run_models):
+    """Render prediction-aware model comparison graphs in explainability section."""
+    st.markdown("<h3 style='color: #0f4c81; font-weight: 700;'>Prediction-Aware Model Comparison</h3>", unsafe_allow_html=True)
+
+    if performance_df is None or performance_df.empty or 'Model' not in performance_df.columns or 'R² Score' not in performance_df.columns:
+        st.info("Model performance data is unavailable for comparison graphs.")
+        return
+
+    name_to_short = {
+        'Random Forest': 'RF',
+        'XGBoost': 'XGB',
+        'LSTM': 'LSTM',
+        'RNN': 'RNN'
+    }
+
+    perf_plot_df = performance_df.copy()
+    perf_plot_df['Short Model'] = perf_plot_df['Model'].map(name_to_short)
+    perf_plot_df = perf_plot_df.dropna(subset=['Short Model'])
+    if perf_plot_df.empty:
+        st.info("No mappable model names found for comparison charts.")
+        return
+
+    perf_plot_df['Current Run'] = perf_plot_df['Short Model'].apply(
+        lambda model_name: 'Included' if model_name in (current_run_models or set()) else 'Available'
+    )
+
+    fig_col1, fig_col2 = st.columns(2)
+
+    with fig_col1:
+        fig_perf = px.bar(
+            perf_plot_df,
+            x='Short Model',
+            y='R² Score',
+            color='Current Run',
+            barmode='group',
+            color_discrete_map={'Included': '#0ea5e9', 'Available': '#94a3b8'},
+            title='Validation R² Comparison by Model'
+        )
+        fig_perf.update_layout(
+            template='plotly_white',
+            height=360,
+            xaxis_title='Model',
+            yaxis_title='R² Score'
+        )
+        st.plotly_chart(fig_perf, use_container_width=True)
+
+    with fig_col2:
+        if 'MAE' in perf_plot_df.columns and 'RMSE' in perf_plot_df.columns:
+            error_df = perf_plot_df.dropna(subset=['MAE', 'RMSE']).copy()
+            if not error_df.empty:
+                fig_error = px.scatter(
+                    error_df,
+                    x='RMSE',
+                    y='MAE',
+                    color='Current Run',
+                    text='Short Model',
+                    size='R² Score',
+                    size_max=24,
+                    color_discrete_map={'Included': '#0ea5e9', 'Available': '#94a3b8'},
+                    title='Model Error Trade-off (MAE vs RMSE)'
+                )
+                fig_error.update_traces(textposition='top center')
+                fig_error.update_layout(
+                    template='plotly_white',
+                    height=390,
+                    xaxis_title='RMSE (lower is better)',
+                    yaxis_title='MAE (lower is better)'
+                )
+                st.plotly_chart(fig_error, use_container_width=True)
+            else:
+                st.info("MAE/RMSE values are unavailable for scatter comparison.")
+        else:
+            st.info("MAE or RMSE columns are missing in performance data.")
 
 def get_research_overview(metadata_obj, performance_df, profiles):
     """Build concise research-facing summary metrics."""
@@ -1701,6 +1911,14 @@ if mode == 'Quick Predict':
                     """, unsafe_allow_html=True)
                     for idx, row in top_actions.iterrows():
                         st.write(f"{idx + 1}. {row['Driver']} drives {row['Share (%)']:.1f}% of the current emissions mix and should be targeted first.")
+
+                render_comparison_dashboard(
+                    predictions,
+                    final_prediction,
+                    scenario_intel,
+                    st.session_state.active_country_actual_co2,
+                    all_perf_df
+                )
             else:
                 st.warning("No prediction was generated with the selected model.")
         
@@ -1848,6 +2066,14 @@ if mode == 'Quick Predict':
             """, unsafe_allow_html=True)
             for idx, row in snapshot_top_actions.iterrows():
                 st.write(f"{idx + 1}. {row['Driver']} drives {row['Share (%)']:.1f}% of the current emissions mix and should be targeted first.")
+
+        render_comparison_dashboard(
+            last_predictions,
+            st.session_state.last_prediction_mean,
+            snapshot_scenario_intel,
+            st.session_state.active_country_actual_co2,
+            all_perf_df
+        )
 
     if st.session_state.last_prediction_mean is not None:
         save_col, clear_col = st.columns([3, 1])
@@ -2000,7 +2226,7 @@ if mode == 'Quick Predict':
 elif mode == 'Model Explainability':
     st.markdown("<h2 class='section-header'>Model Explainability</h2>", unsafe_allow_html=True)
     
-    tab1, tab2 = st.tabs(["Feature Importance", "Sensitivity Analysis"])
+    tab1, tab2, tab3 = st.tabs(["Feature Importance", "Sensitivity Analysis", "Model Comparison"])
     
     with tab1:
         st.markdown("<h3 style='color: #00d4ff; font-weight: 700;'>Feature Importance</h3>", unsafe_allow_html=True)
@@ -2121,11 +2347,25 @@ elif mode == 'Model Explainability':
                 )
                 st.plotly_chart(fig_sens, use_container_width=True)
 
+    with tab3:
+        current_run_models = get_current_run_short_models(
+            selected_model_key,
+            prediction_scope,
+            available_model_keys
+        )
+
+        if st.session_state.get('last_predictions'):
+            st.caption("Using latest Predict run from Quick Predict mode.")
+        else:
+            st.caption("No previous prediction found. Using current sidebar model selection.")
+
+        render_prediction_aware_model_graphs(all_perf_df, current_run_models)
+
 # Footer
 st.divider()
 st.markdown("""
 <div class='footer'>
-<p><b>Carbon Analytics Platform</b> | Enterprise ML System<br>
-<small>© 2026 | Production Ready</small></p>
+<p><b>Comparative Analysis of Deep Learning and Machine Learning Models</b><br>
+<small>CO2 Forecasting Research</small></p>
 </div>
 """, unsafe_allow_html=True)
