@@ -17,6 +17,7 @@ except Exception:
     OpenAI = None
 from tensorflow.keras.models import load_model
 from tensorflow.keras.layers import Dense, InputLayer
+from tensorflow.keras.mixed_precision import Policy
 
 OPENAI_MODEL_DEFAULT = "gpt-4o-mini"
 
@@ -513,6 +514,17 @@ def load_deep_learning_model(model_key):
                 cfg['batch_input_shape'] = batch_shape
             return super().from_config(cfg)
 
+    class DTypePolicyCompat(Policy):
+        """Compatibility wrapper for models serialized with Keras dtype policies."""
+
+        @classmethod
+        def from_config(cls, config):
+            if isinstance(config, dict):
+                policy_name = config.get('name') or config.get('class_name') or config.get('value')
+            else:
+                policy_name = config
+            return cls(policy_name or 'float32')
+
     try:
         return load_model(model_path, compile=False), None
     except Exception:
@@ -520,7 +532,12 @@ def load_deep_learning_model(model_key):
             return load_model(
                 model_path,
                 compile=False,
-                custom_objects={'Dense': DenseCompat, 'InputLayer': InputLayerCompat}
+                custom_objects={
+                    'Dense': DenseCompat,
+                    'InputLayer': InputLayerCompat,
+                    'DTypePolicy': DTypePolicyCompat,
+                    'Policy': DTypePolicyCompat
+                }
             ), None
         except Exception as compat_error:
             return None, f"Failed to load {model_key} from {model_path}: {compat_error}"
