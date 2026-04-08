@@ -64,6 +64,37 @@ def get_config_value(name, default=""):
             secret_text = str(secret_value).strip()
             if secret_text:
                 return secret_text
+
+        # Support common nested Streamlit secrets structure:
+        # [openai]
+        # api_key = "..."
+        # model = "..."
+        if name in ("OPENAI_API_KEY", "OPENAI_MODEL"):
+            openai_block = st.secrets.get("openai", None)
+            if hasattr(openai_block, "get"):
+                alias_map = {
+                    "OPENAI_API_KEY": ["api_key", "OPENAI_API_KEY", "openai_api_key"],
+                    "OPENAI_MODEL": ["model", "OPENAI_MODEL", "openai_model"]
+                }
+                for alias in alias_map[name]:
+                    candidate = openai_block.get(alias, "")
+                    if isinstance(candidate, str) and candidate.strip():
+                        return candidate.strip()
+                    if candidate is not None:
+                        candidate_text = str(candidate).strip()
+                        if candidate_text:
+                            return candidate_text
+
+        # Also try lowercase key variant in secrets (e.g. openai_api_key).
+        lowered = name.lower()
+        if lowered != name:
+            lower_secret = st.secrets.get(lowered, "")
+            if isinstance(lower_secret, str) and lower_secret.strip():
+                return lower_secret.strip()
+            if lower_secret is not None:
+                lower_secret_text = str(lower_secret).strip()
+                if lower_secret_text:
+                    return lower_secret_text
     except Exception:
         pass
 
@@ -1494,7 +1525,11 @@ def get_llm_reduction_suggestions(features, predicted_co2_mt):
     """Generate reduction plan with OpenAI; fallback to deterministic rules."""
     api_key = get_config_value('OPENAI_API_KEY')
     if not api_key:
-        return get_rule_based_reduction_suggestions(features), "rule-based", "OPENAI_API_KEY is missing"
+        return (
+            get_rule_based_reduction_suggestions(features),
+            "rule-based",
+            "OPENAI_API_KEY is missing (set it in .env for local runs or Streamlit Cloud Secrets for deployment)."
+        )
 
     try:
         model_name = get_config_value('OPENAI_MODEL', OPENAI_MODEL_DEFAULT)
@@ -1543,7 +1578,7 @@ def get_followup_advisor_response(user_question, features, predicted_co2_mt, cur
         return (
             get_rule_based_followup_response(user_question, features),
             "rule-based",
-            "OPENAI_API_KEY is missing"
+            "OPENAI_API_KEY is missing (set it in .env for local runs or Streamlit Cloud Secrets for deployment)."
         )
 
     try:

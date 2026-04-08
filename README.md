@@ -51,6 +51,8 @@ OPENAI_API_KEY = "sk-..."
 OPENAI_MODEL = "gpt-4o-mini"
 ```
 
+Note: `.env` files are for local development and are ignored in this repo for security. On Streamlit Cloud, set keys in **App Settings -> Secrets**.
+
 5. Deploy.
 
 If `OPENAI_API_KEY` is not configured, the app still works and falls back to rule-based suggestions for advisor features.
